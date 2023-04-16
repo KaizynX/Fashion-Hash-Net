@@ -657,7 +657,7 @@ class ColdStart(FashionNetDeploy):
         time_points.append(time.time())
         LOGGER.info(f'user_embedding() user-item embedding time cost: {time_points[-1] - time_points[-2]}s.')
         user_codes = [
-            self.sign(self.beta * code_user + (1 - self.beta) * code_item)
+            self.sign(self.beta * code_user + (1 - self.beta) * code_item).view(-1)
             for code_user, code_item in zip(codes_user, codes_item)
         ]
         # user_codes = utils.to_device(user_codes, self.device)
@@ -671,7 +671,12 @@ class ColdStart(FashionNetDeploy):
         Return the scores for items.
         """
         items, uidx = inputs
-        users = self.user_codes[uidx]
+        users = torch.stack([self.user_codes[u] for u in uidx])
+        users = utils.to_device(users, self.device)
+        # print(users.shape)
+        # print(type(self.user_codes[0]))
+        # print(self.user_codes[0].shape)
+        # print(users)
         if self.param.use_semantic and self.param.use_visual:
             score_v = self.visual_output(users, items[0])
             score_s = self.semantic_output(users, items[1])
