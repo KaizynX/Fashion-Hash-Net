@@ -529,6 +529,7 @@ class ColdStart(FashionNetDeploy):
         super().__init__(param)
         self.big_loader = polyvore.data.get_dataloader(param.big_data_param)
         self.small_loader = polyvore.data.get_dataloader(param.small_data_param)
+        self.device = self.param.gpus[0]
         self.beta: float = 0.5
         self.big_outfits_posi_feat   = None
         self.small_outfits_posi_feat = None
@@ -537,29 +538,36 @@ class ColdStart(FashionNetDeploy):
         self.load_data()
         self.user_codes: dict = self.get_user_embedding()
     
-
     def get_outfits(self, loader):
-        # user_num * outfit_num * 3(category) * 2(visual, text) * feat_dim
+        # outfits: user_num * outfit_num * 3(category) * 2(visual, text) * feat_dim
+        # -------> user_num * feat_dim
         outfits = []
-        device = torch.device(0)
-        self.cuda(device)
+        outfits_num = []
+        D = self.param.dim
         pbar = tqdm.tqdm(loader, desc="Getting Outfits")
         for inputv in pbar:
             items, uidx = inputv
-            items = utils.to_device(items, device)
+            items = utils.to_device(items, self.device)
             with torch.no_grad():
                 feat_v, feat_t = self.compute_codes(items)
             feat_v = [feat.cpu().numpy().astype(np.int8) for feat in feat_v]
             feat_t = [feat.cpu().numpy().astype(np.int8) for feat in feat_t]
             for n, u in enumerate(uidx):
                 if len(outfits) < u + 1: # resize to $u
-                    outfits += [[] for i in range(u + 1 - len(outfits))]
-                # outfit = [feat_v[:,n], feat_t[:,n]]
-                outfit = [[v[n], t[n]] for v, t in zip(feat_v, feat_t)]
-                outfits[u].append(outfit)
+                    # outfits += [[] for i in range(u + 1 - len(outfits))]
+                    outfits += [torch.zeros(D) for _ in range(u + 1 - len(outfits))]
+                    outfits_num += [0 for _ in range(u + 1 - len(outfits_num))]
+                # outfit = [[v[n], t[n]] for v, t in zip(feat_v, feat_t)]
+                # outfits[u].append(outfit)
+                outfit_v = sum([v[n] for v in feat_v]) / len(feat_v)
+                outfit_t = sum([t[n] for t in feat_t]) / len(feat_t)
+                outfits[u] += (outfit_v + outfit_t) / 2
+                outfits_num[u] += 1
+        # calculate average 
+        outfits = [outfit / num for outfit, num in zip(outfits, outfits_num)]
         return outfits
 
-    def get_user_binary_code(self, device="cpu"):
+    def get_user_binary_code(self):
         LOGGER.info('Loading big user_binary_code')
         with open('features/fashion_hash_net_vse_t3_u630.npz', 'rb') as f:
             data = pickle.load(f)
@@ -577,13 +585,13 @@ class ColdStart(FashionNetDeploy):
             pickle.dump(data, f)
         LOGGER.info('save data done.')
 
-
     def load_data(self):
         try:
             with open(self.param.data_file, 'rb') as f:
                 data = pickle.load(f)
         except Exception as e:
             LOGGER.info(f'loading data failed: {e}')
+            self.cuda(self.device)
         else:
             LOGGER.info(f'loading data from {self.param.data_file}')
             self.big_outfits_posi_feat   = data.get('big_outfits_posi_feat', None)
@@ -604,7 +612,6 @@ class ColdStart(FashionNetDeploy):
             self.big_user_codes = self.get_user_binary_code()
         self.save_data()
 
-
     def user_user_embedding(self, big_outfits, small_outfits, big_user_codes, lambda_i):
         D = self.param.dim
         big_num_users = len(big_outfits)
@@ -612,48 +619,51 @@ class ColdStart(FashionNetDeploy):
         user_code = [torch.Tensor(1, D) for _ in range(small_num_users)]
         pbar = tqdm.tqdm(range(small_num_users), desc="user_user_embedding")
         for ui in pbar:
-            # pbarj = tqdm.tqdm(range(big_num_users), desc="big users")
             for uj in range(big_num_users):
-                r = 0.0
-                for small_outfit in small_outfits[ui]:
-                    for big_outfit in big_outfits[uj]:
-                        for i in range(3):
-                            for j in range(2):
-                                r += (small_outfit[i][j] * lambda_i * big_outfit[i][j]).sum()
-                r /= len(small_outfits[ui]) * len(big_outfits[uj]) * D**2 * 3 * 2
+                r = (small_outfits[ui] * lambda_i * big_outfits[uj]) / D
                 user_code[ui] += r * big_user_codes[uj]
             user_code[ui] /= big_num_users
+        return user_code
         return self.sign(user_code)
-
 
     def user_item_embedding(self, outfits, lambda_u):
-        D = self.param.dim
-        num_users = len(outfits)
-        user_code = [torch.Tensor(1, D) for _ in range(num_users)]
-        pbar = tqdm.tqdm(range(num_users), desc="user_item_embedding")
-        for u in pbar:
-            for outfit in outfits[u]:
-                user_code[u] += outfit.sum(dim=0) / len(outfit)
-            outfit /= len(outfits[u])
-        user_code *= lambda_u
+        user_code = [outfit * lambda_u for outfit in outfits]
+        return user_code
         return self.sign(user_code)
 
-
     def get_user_embedding(self):
-        time_start = time.time()
+        time_points = [time.time()]
         lambda_i, lambda_u, alpha = self.get_matching_weight()
-        LOGGER.info(f'user_embedding() get data time cost: {time.time() - time_start}s.')
-
-        codes_user = self.user_user_embedding(self.big_outfits_posi_feat, self.small_outfits_posi_feat, self.big_user_codes, lambda_i)\
-                   - self.user_user_embedding(self.big_outfits_posi_feat, self.small_outfits_nega_feat, self.big_user_codes, lambda_i)
-        LOGGER.info(f'user_embedding() user-user embedding time cost: {time.time() - time_start}s.')
-        codes_item = self.user_item_embedding(self.small_outfits_posi_feat, lambda_u)\
-                   - self.user_item_embedding(self.small_outfits_nega_feat, lambda_u)
-        LOGGER.info(f'user_embedding() user-user small_outfit_posi[i][j]embedding time cost: {time.time() - time_start}s.')
-        user_codes = (self.beta * codes_user + (1 - self.beta) * codes_item) / 2
-        LOGGER.info(f'user_embedding() time cost: {time.time() - time_start}s.')
-        return self.sign(user_codes)
-
+        time_points.append(time.time())
+        LOGGER.info(f'user_embedding() get weight time cost: {time_points[-1] - time_points[-2]}s.')
+        codes_user_posi = self.user_user_embedding(
+            self.big_outfits_posi_feat,
+            self.small_outfits_posi_feat,
+            self.big_user_codes,
+            lambda_i
+        )
+        codes_user_nega = self.user_user_embedding(
+            self.big_outfits_posi_feat,
+            self.small_outfits_nega_feat,
+            self.big_user_codes,
+            lambda_i
+        )
+        codes_user = [(posi - nega) / 2 for posi, nega in zip(codes_user_posi, codes_user_nega)]
+        time_points.append(time.time())
+        LOGGER.info(f'user_embedding() user-user embedding time cost: {time_points[-1] - time_points[-2]}s.')
+        codes_item_posi = self.user_item_embedding(self.small_outfits_posi_feat, lambda_u)
+        codes_item_nega = self.user_item_embedding(self.small_outfits_nega_feat, lambda_u)
+        codes_item = [(posi - nega) / 2 for posi, nega in zip(codes_item_posi, codes_item_nega)]
+        time_points.append(time.time())
+        LOGGER.info(f'user_embedding() user-item embedding time cost: {time_points[-1] - time_points[-2]}s.')
+        user_codes = [
+            self.sign(self.beta * code_user + (1 - self.beta) * code_item)
+            for code_user, code_item in zip(codes_user, codes_item)
+        ]
+        # user_codes = utils.to_device(user_codes, self.device)
+        time_points.append(time.time())
+        LOGGER.info(f'user_embedding() total time cost: {time_points[-1] - time_points[0]}s.')
+        return user_codes
 
     def forward(self, *inputs):
         """Forward.

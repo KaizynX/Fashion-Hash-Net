@@ -334,6 +334,7 @@ class NetParam(_Param):
         big_data_param=None,
         small_data_param=None,
         data_file=None,
+        gpus=None,
     )
 
     def setup(self):
