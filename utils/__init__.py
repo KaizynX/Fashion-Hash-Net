@@ -96,7 +96,7 @@ def get_device(gpus=None):
 
 def to_device(data, device):
     """Move data to device."""
-    from collections import Sequence
+    from collections.abc import Sequence
 
     error_msg = "data must contain tensors or lists; found {}"
     if isinstance(data, Sequence):

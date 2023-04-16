@@ -331,6 +331,9 @@ class NetParam(_Param):
         hash_types=0,
         margin=None,
         debug=False,
+        big_data_param=None,
+        small_data_param=None,
+        data_file=None,
     )
 
     def setup(self):
@@ -347,6 +350,10 @@ class NetParam(_Param):
             self.cate_map = [0, 1, 2]
             self.variable_length = False
             self.cate_name = ["top", "bottom", "shoe"]
+        if self.big_data_param:
+            self.big_data_param = DataParam(**self.big_data_param)
+        if self.small_data_param:
+            self.small_data_param = DataParam(**self.small_data_param)
 
 
 # TODO: Check OptimParam
@@ -436,7 +443,7 @@ class SolverParam(_Param):
 
     default = dict(
         name=None,
-        gpus=[0],
+        gpus=None,
         gamma=0.1,
         visdom_env="main",
         checkpoints="./checkpoints",

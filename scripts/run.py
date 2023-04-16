@@ -330,12 +330,29 @@ def extract_features(config):
         pickle.dump(data, f)
 
 
+def test(config):
+    data_param = config.data_param
+    loader = polyvore.data.get_dataloader(data_param)
+    for inputv in loader:
+        # items, tpls, uidx = inputv
+        items, uidx = inputv
+        one_hot = utils.one_hot(uidx, config.net_param.num_users)
+        print(len(items))
+        print(items[0].shape)
+        # print(tpls.shape)
+        print(uidx)
+        print(uidx.shape)
+        print(one_hot)
+        print(one_hot.shape)
+        return
+
 ACTION_FUNS = {
     "train": train,
     "fitb": fitb,
     "evaluate-accuracy": evalute_accuracy,
     "evaluate-rank": evalute_rank,
     "extract-features": extract_features,
+    "test": test,
 }
 
 LOGGER = logging.getLogger("polyvore")

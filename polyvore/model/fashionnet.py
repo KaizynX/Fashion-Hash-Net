@@ -1,7 +1,10 @@
 """Models for fashion Net."""
 import logging
 import threading
+import time
 
+import tqdm
+import pickle
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -17,6 +20,7 @@ from . import basemodel as M
 
 NAMED_MODELS = utils.get_named_function(B)
 LOGGER = logging.getLogger(__name__)
+OUTFIT_ENCODER = False
 
 
 def contrastive_loss(margin, im, s):
@@ -96,18 +100,22 @@ class FashionNet(nn.Module):
         if self.param.use_visual:
             self.features = NAMED_MODELS[param.backbone](tailed=True)
         # single encoder or multi-encoders
-        num_encoder = 1 if param.single else cfg.NumCate
+        num_encoder = 1 if param.single else cfg.NumCate # NumCate = 3
         # hashing codes
         if self.param.use_visual:
             feat_dim = self.features.dim
             self.encoder_v = nn.ModuleList(
                 [M.ImgEncoder(feat_dim, param) for _ in range(num_encoder)]
             )
+            if OUTFIT_ENCODER:
+                self.encoder_v.append(M.ImgEncoder(feat_dim * num_encoder, param))
         if self.param.use_semantic:
             feat_dim = 2400
             self.encoder_t = nn.ModuleList(
                 [M.TxtEncoder(feat_dim, param) for _ in range(num_encoder)]
             )
+            if OUTFIT_ENCODER:
+                self.encoder_t.append(M.TxtEncoder(feat_dim * num_encoder, param))
         # matching block
         if self.param.hash_types == polyvore.param.NO_WEIGHTED_HASH:
             # use learnable scale
@@ -227,7 +235,7 @@ class FashionNet(nn.Module):
            use duplicated top when necessary.
         """
         size = len(ilatents)
-        indx, indy = np.triu_indices(size, k=1)
+        indx, indy = np.triu_indices(size, k=1) # 上三角矩阵(不包括对角) indices
         if size == 4:
             # remove top-top comparison
             indx = indx[1:]
@@ -276,7 +284,10 @@ class FashionNet(nn.Module):
         return x.detach().sign()
 
     def latent_code(self, items, encoder):
-        """Return latent codes."""
+        """
+        Return latent codes.
+        return encoder[cate](items)
+        """
         latent_code = []
         size = len(items)
         if self.param.single:
@@ -285,9 +296,13 @@ class FashionNet(nn.Module):
             cate = self.param.cate_map
         latent_code = [encoder[c](x) for c, x in zip(cate, items)]
         # shape Length * N x D
+        if OUTFIT_ENCODER:
+            latent_code.append(encoder[-1](torch.cat(items, 1)))
+        # shape Length * (N + 1) x D
         return latent_code
 
     def _pairwise_output(self, lcus, pos_feat, neg_feat, encoder):
+        """return (pscore, nscore, bpscore, bnscore), latents"""
         lcpi = self.latent_code(pos_feat, encoder)
         lcni = self.latent_code(neg_feat, encoder)
         # score with relaxed features
@@ -503,3 +518,158 @@ class FashionNetDeploy(FashionNet):
         else:
             raise ValueError
 
+
+class ColdStart(FashionNetDeploy):
+    def __init__(self, param):
+        """Initialize FashionNet.
+
+        Parameters:
+
+        """
+        super().__init__(param)
+        self.big_loader = polyvore.data.get_dataloader(param.big_data_param)
+        self.small_loader = polyvore.data.get_dataloader(param.small_data_param)
+        self.beta: float = 0.5
+        self.big_outfits_posi_feat   = None
+        self.small_outfits_posi_feat = None
+        self.small_outfits_nega_feat = None
+        self.big_user_codes          = None
+        self.load_data()
+        self.user_codes: dict = self.get_user_embedding()
+    
+
+    def get_outfits(self, loader):
+        # user_num * outfit_num * 3(category) * 2(visual, text) * feat_dim
+        outfits = []
+        device = torch.device(0)
+        self.cuda(device)
+        pbar = tqdm.tqdm(loader, desc="Getting Outfits")
+        for inputv in pbar:
+            items, uidx = inputv
+            items = utils.to_device(items, device)
+            with torch.no_grad():
+                feat_v, feat_t = self.compute_codes(items)
+            feat_v = [feat.cpu().numpy().astype(np.int8) for feat in feat_v]
+            feat_t = [feat.cpu().numpy().astype(np.int8) for feat in feat_t]
+            for n, u in enumerate(uidx):
+                if len(outfits) < u + 1: # resize to $u
+                    outfits += [[] for i in range(u + 1 - len(outfits))]
+                # outfit = [feat_v[:,n], feat_t[:,n]]
+                outfit = [[v[n], t[n]] for v, t in zip(feat_v, feat_t)]
+                outfits[u].append(outfit)
+        return outfits
+
+    def get_user_binary_code(self, device="cpu"):
+        LOGGER.info('Loading big user_binary_code')
+        with open('features/fashion_hash_net_vse_t3_u630.npz', 'rb') as f:
+            data = pickle.load(f)
+        return data['user_codes']
+
+    def save_data(self):
+        LOGGER.info('saving data')
+        with open(self.param.data_file, 'wb') as f:
+            data = dict(
+                big_outfits_posi_feat   = self.big_outfits_posi_feat,
+                small_outfits_posi_feat = self.small_outfits_posi_feat,
+                small_outfits_nega_feat = self.small_outfits_nega_feat,
+                big_user_codes          = self.big_user_codes
+            )
+            pickle.dump(data, f)
+        LOGGER.info('save data done.')
+
+
+    def load_data(self):
+        try:
+            with open(self.param.data_file, 'rb') as f:
+                data = pickle.load(f)
+        except Exception as e:
+            LOGGER.info(f'loading data failed: {e}')
+        else:
+            LOGGER.info(f'loading data from {self.param.data_file}')
+            self.big_outfits_posi_feat   = data.get('big_outfits_posi_feat', None)
+            self.small_outfits_posi_feat = data.get('small_outfits_posi_feat', None)
+            self.small_outfits_nega_feat = data.get('small_outfits_nega_feat', None)
+            self.big_user_codes          = data.get('big_user_codes', None)
+
+        if self.big_outfits_posi_feat is None:
+            self.big_loader.set_data_mode('PosiOnly')
+            self.big_outfits_posi_feat = self.get_outfits(self.big_loader)
+        if self.small_outfits_posi_feat is None:
+            self.small_loader.set_data_mode('PosiOnly')
+            self.small_outfits_posi_feat = self.get_outfits(self.small_loader)
+        if self.small_outfits_nega_feat is None:
+            self.small_loader.set_data_mode('NegaOnly')
+            self.small_outfits_nega_feat = self.get_outfits(self.small_loader)
+        if self.big_user_codes is None:
+            self.big_user_codes = self.get_user_binary_code()
+        self.save_data()
+
+
+    def user_user_embedding(self, big_outfits, small_outfits, big_user_codes, lambda_i):
+        D = self.param.dim
+        big_num_users = len(big_outfits)
+        small_num_users = len(small_outfits)
+        user_code = [torch.Tensor(1, D) for _ in range(small_num_users)]
+        pbar = tqdm.tqdm(range(small_num_users), desc="user_user_embedding")
+        for ui in pbar:
+            # pbarj = tqdm.tqdm(range(big_num_users), desc="big users")
+            for uj in range(big_num_users):
+                r = 0.0
+                for small_outfit in small_outfits[ui]:
+                    for big_outfit in big_outfits[uj]:
+                        for i in range(3):
+                            for j in range(2):
+                                r += (small_outfit[i][j] * lambda_i * big_outfit[i][j]).sum()
+                r /= len(small_outfits[ui]) * len(big_outfits[uj]) * D**2 * 3 * 2
+                user_code[ui] += r * big_user_codes[uj]
+            user_code[ui] /= big_num_users
+        return self.sign(user_code)
+
+
+    def user_item_embedding(self, outfits, lambda_u):
+        D = self.param.dim
+        num_users = len(outfits)
+        user_code = [torch.Tensor(1, D) for _ in range(num_users)]
+        pbar = tqdm.tqdm(range(num_users), desc="user_item_embedding")
+        for u in pbar:
+            for outfit in outfits[u]:
+                user_code[u] += outfit.sum(dim=0) / len(outfit)
+            outfit /= len(outfits[u])
+        user_code *= lambda_u
+        return self.sign(user_code)
+
+
+    def get_user_embedding(self):
+        time_start = time.time()
+        lambda_i, lambda_u, alpha = self.get_matching_weight()
+        LOGGER.info(f'user_embedding() get data time cost: {time.time() - time_start}s.')
+
+        codes_user = self.user_user_embedding(self.big_outfits_posi_feat, self.small_outfits_posi_feat, self.big_user_codes, lambda_i)\
+                   - self.user_user_embedding(self.big_outfits_posi_feat, self.small_outfits_nega_feat, self.big_user_codes, lambda_i)
+        LOGGER.info(f'user_embedding() user-user embedding time cost: {time.time() - time_start}s.')
+        codes_item = self.user_item_embedding(self.small_outfits_posi_feat, lambda_u)\
+                   - self.user_item_embedding(self.small_outfits_nega_feat, lambda_u)
+        LOGGER.info(f'user_embedding() user-user small_outfit_posi[i][j]embedding time cost: {time.time() - time_start}s.')
+        user_codes = (self.beta * codes_user + (1 - self.beta) * codes_item) / 2
+        LOGGER.info(f'user_embedding() time cost: {time.time() - time_start}s.')
+        return self.sign(user_codes)
+
+
+    def forward(self, *inputs):
+        """Forward.
+
+        Return the scores for items.
+        """
+        items, uidx = inputs
+        users = self.user_codes[uidx]
+        if self.param.use_semantic and self.param.use_visual:
+            score_v = self.visual_output(users, items[0])
+            score_s = self.semantic_output(users, items[1])
+            score = [0.5 * (v + s) for v, s in zip(score_v, score_s)]
+        elif self.param.use_visual:
+            score = self.visual_output(users, items)
+        elif self.param.use_semantic:
+            score = self.semantic_output(users, items)
+        else:
+            raise ValueError
+        return score

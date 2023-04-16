@@ -111,7 +111,10 @@ class BasicSolver(object):
     def run(self):
         """Run solver from epoch [0, epochs - 1]."""
         while self.last_epoch < self.param.epochs - 1:
+            time_start = time()
             self.step()
+            time_end = time()
+            LOGGER.info(f'epoch: {self.last_epoch}, time cost: {time_end - time_start}s.')
 
     def adjust_before_epoch(self, epoch):
         pass

@@ -1,19 +1,17 @@
-data_param:
-  phase: test # split
-  batch_size: 256 # batch size
+fitb_data_param:
+  phase: "test"
+  num_cand: 4
   data_root: data/polyvore # data root
-  image_root: data/polyvore # image root
-  data_set: tuples_630 # data set
-  nega_mode: RandomFix # negative outfits strategy
-  shuffle: False # do shuffle
-  num_workers: 8 # number of workers
+  image_root: data/polyvore # data root
+  data_set: tuples_53 # data set
+  num_workers: 6 # number of workers
   use_lmdb: true # use lmbd data
   use_semantic: true # use sentance data
   use_visual: true # use visual data
 
 net_param:
-  name: FashionNet
-  num_users: 630 # number of users
+  name: FashionNetDeploy
+  num_users: 53 # number of users
   dim: 128 # dimension of binary codes
   backbone: alexnet # backbone for feature extractor
   hash_types: 3 # type of hash codes
@@ -21,6 +19,7 @@ net_param:
   use_semantic: true # use semantic features
   use_visual: true # user visdual features
 
-load_trained: models/fashion_hash_net_vse_t3_u630_best.net
-result_file: results/fashion_hash_net_vse_t3_u630.npz
 gpus: [0]
+load_trained: models/fashion_hash_net_vse_t3_u630_53_best.net
+result_file: results/fashion_hash_net_vse_t3_u630_53.npz
+log_level: INFO

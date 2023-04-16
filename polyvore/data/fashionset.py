@@ -284,6 +284,9 @@ class PolyvoreDataset(Dataset):
             "NegaOnly",
             "PairWise",
             "TripleWise",  # not implemented
+            "TuplePosi",
+            "TupleNega",
+            "TuplePair",
         ], ("Unknown data mode: %s" % mode)
         LOGGER.info("Set data mode to %s.", utils.colour(mode))
         self.param.data_mode = mode
@@ -393,6 +396,24 @@ class PolyvoreDataset(Dataset):
     def tpl_to_tensor(self, tpl):
         """Public the API for get outfit by index tuple."""
         return self.datum.get(tpl)
+    
+    def _TuplePosi(self, index):
+        uidx, tpl = self.uidxs[index], self.posi[index]
+        return (tpl, uidx)
+
+    def _TupleNega(self, index):
+        uidx, tpl = self.uidxs[index // self.ratio], self.nega[index]
+        return (tpl, uidx)
+
+    def _TuplePair(self, index):
+        uidx = self.uidxs[index // self.ratio]
+        posi_tpl = self.posi[index // self.ratio]
+        nega_tpl = self.nega[index]
+        return (posi_tpl, nega_tpl, uidx)
+    
+    def _TripleWise(self, index):
+        uidx, tpl = self.uidxs[index], self.posi[index]
+        return (self.datum.get(tpl), tpl, uidx)
 
     def _TupleOnly(self, index):
         """Get single outfit."""
@@ -422,6 +443,10 @@ class PolyvoreDataset(Dataset):
             PairWise=self._PairWise,
             PosiOnly=self._PosiOnly,
             NegaOnly=self._NegaOnly,
+            TripleWise=self._TripleWise,
+            TuplePosi=self._TuplePosi,
+            TupleNega=self._TupleNega,
+            TuplePair=self._TuplePair,
         )[self.param.data_mode](index)
 
     def __len__(self):
@@ -431,6 +456,10 @@ class PolyvoreDataset(Dataset):
             PosiOnly=self.num_posi,  # all positive tuples
             NegaOnly=self.ratio * self.num_posi,  # all negative tuples
             PairWise=self.ratio * self.num_posi,
+            TripleWise=self.num_posi,
+            TuplePosi=self.num_posi,
+            TupleNega=self.ratio * self.num_posi,
+            TuplePair=self.ratio * self.num_posi,
         )[self.param.data_mode]
 
 
