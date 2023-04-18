@@ -23,7 +23,7 @@ net_param:
   use_visual: true # user visdual features
 
   big_data_param:
-    phase: test
+    phase: train
     batch_size: 64
     data_root: data/polyvore # data root
     data_set: tuples_630 # data set
