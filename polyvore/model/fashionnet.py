@@ -622,21 +622,16 @@ class ColdStart(FashionNetDeploy):
         self.save_data()
 
     def user_user_embedding(self, big_outfits, small_outfits, big_user_codes, lambda_i):
-        K = 300
         D = self.param.dim
         big_num_users = len(big_outfits)
         small_num_users = len(small_outfits)
         user_code = [torch.zeros(D) for _ in range(small_num_users)]
         pbar = tqdm.tqdm(range(small_num_users), desc="user_user_embedding")
         for ui in pbar:
-            sim = [0.0 for uj in range(big_num_users)]
             for uj in range(big_num_users):
-                sim[uj] = (small_outfits[ui] * lambda_i * big_outfits[uj]).sum() / D
-            sim = sorted(enumerate(sim), key=lambda x:x[1])
-            k = min(K, big_num_users)
-            for uj, r in sim[:k]:
-                user_code[ui] += r * big_user_codes[uj]
-            user_code[ui] /= k
+                sim = (small_outfits[ui] * lambda_i * big_outfits[uj]).sum() / D
+                user_code[ui] += sim * big_user_codes[uj]
+            user_code[ui] /= big_num_users
         return user_code
 
     def user_item_embedding(self, outfits, lambda_u):
