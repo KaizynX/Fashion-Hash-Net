@@ -124,5 +124,5 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-/data
 /results
+web/images/291x291
