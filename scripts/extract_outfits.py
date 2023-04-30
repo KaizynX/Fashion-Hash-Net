@@ -118,7 +118,7 @@ def extract_features(config):
     with open(config.feature_file, "wb") as f:
         data = dict(
             user_codes=user_codes,
-            item_codes=item_codes,
+            outfits=outfits,
             lambda_u=lambda_u,
             lambda_i=lambda_i,
             alpha=alpha,
