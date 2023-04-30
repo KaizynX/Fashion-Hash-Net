@@ -21,7 +21,7 @@ net_param:
   use_semantic: true # use semantic features
   use_visual: true # user visdual features
 
-load_trained: models/fashion_hash_net_vse_t3_u630_53_best.net
+load_trained: checkpoints/fashion_hash_net_vse_t3_u630_53_best.net
 result_file: results/fashion_hash_net_vse_t3_u630_53.npz
 # result_dir: rank/top-n-vse-t3-u630
 gpus: [0]

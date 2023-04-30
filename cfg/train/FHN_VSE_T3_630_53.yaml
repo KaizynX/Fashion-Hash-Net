@@ -2,7 +2,7 @@ data_param:
   batch_size: 64 # batch size
   data_root: data/polyvore # data root
   image_root: data/polyvore # image root
-  data_set: tuples_53 # data set
+  data_set: tuples_53_5 # data set
   nega_mode: RandomOnline # negative outfits strategy
   num_workers: 8 # number of workers
   use_lmdb: true # use lmbd data
@@ -33,7 +33,7 @@ net_param:
 solver_param:
   name: "FashionNetSolver"
   display: 20 # display interval
-  epochs: 100 # total epoches
+  epochs: 1 # total epoches
   gamma: 1.0 # gamma for scale-tanh
   gpus: [0]
   visdom_env: fashion_hash_net
@@ -51,5 +51,5 @@ solver_param:
 
 cold_start: True
 load_trained: models/fashion_hash_net_vse_t3_u630_best.net
-log_file: logs/train/fashion_hash_net_vse_t3_u630.log
+log_file: logs/train/fashion_hash_net_vse_t3_u630_53.log
 log_level: DEBUG

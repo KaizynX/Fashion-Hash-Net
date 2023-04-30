@@ -607,7 +607,7 @@ class ColdStart(FashionNetDeploy):
             LOGGER.info('loading big_outfits_nega_feat')
             self.big_loader.set_data_mode('NegaOnly')
             self.big_outfits_nega_feat = self.get_outfits(self.big_loader)
-        reload_small = False
+        reload_small = True
         if reload_small or self.small_outfits_posi_feat is None:
             LOGGER.info('loading small_outfits_posi_feat')
             self.small_loader.set_data_mode('PosiOnly')

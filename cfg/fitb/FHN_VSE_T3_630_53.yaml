@@ -20,6 +20,6 @@ net_param:
   use_visual: true # user visdual features
 
 gpus: [0]
-load_trained: models/fashion_hash_net_vse_t3_u630_53_best.net
+load_trained: checkpoints/fashion_hash_net_vse_t3_u630_53_best.net
 result_file: results/fashion_hash_net_vse_t3_u630_53.npz
 log_level: INFO
