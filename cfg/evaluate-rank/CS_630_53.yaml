@@ -37,7 +37,7 @@ net_param:
     phase: train
     batch_size: 64
     data_root: data/polyvore # data root
-    data_set: tuples_53_5 # data set
+    data_set: tuples_53 # data set
     data_mode: TuplePair
     shuffle: False
     num_workers: 6 # number of workers

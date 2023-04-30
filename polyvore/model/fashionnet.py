@@ -536,15 +536,18 @@ class ColdStart(FashionNetDeploy):
         self.small_outfits_posi_feat = None
         self.small_outfits_nega_feat = None
         self.big_user_codes          = None
+        self.outfits_raw             = None
         self.load_data()
         self.user_codes: dict = self.get_user_embedding()
     
-    def get_outfits(self, loader):
+    def get_outfits(self, loader, raw=False):
         # outfits: user_num * outfit_num * 3(category) * 2(visual, text) * feat_dim
         # -------> user_num * feat_dim
+        time_start = time.time()
         num_users = loader.num_users
         D = self.param.dim
         outfits = [torch.zeros(D) for _ in range(num_users)]
+        outfits_raw = []
         outfits_num = [0 for _ in range(num_users)]
         pbar = tqdm.tqdm(loader, desc="Getting Outfits")
         for inputv in pbar:
@@ -555,15 +558,20 @@ class ColdStart(FashionNetDeploy):
             feat_v = [feat.cpu().numpy().astype(np.int8) for feat in feat_v]
             feat_t = [feat.cpu().numpy().astype(np.int8) for feat in feat_t]
             for n, u in enumerate(uidx):
-                # outfit = [[v[n], t[n]] for v, t in zip(feat_v, feat_t)]
-                # outfits[u].append(outfit)
                 outfit_v = sum([v[n] for v in feat_v]) / len(feat_v)
                 outfit_t = sum([t[n] for t in feat_t]) / len(feat_t)
-                outfits[u] += (outfit_v + outfit_t) / 2
+                outfit = (outfit_v + outfit_t) / 2
+                outfits[u] += outfit
                 outfits_num[u] += 1
+                if raw:
+                    outfits_raw.append(outfit)
         # calculate average 
         outfits = [outfit / num for outfit, num in zip(outfits, outfits_num)]
-        return outfits
+        LOGGER.info(f'get_outfits() cost {time.time() - time_start} s.')
+        if raw:
+            return outfits, outfits_raw
+        else:
+            return outfits
 
     def get_user_binary_code(self):
         LOGGER.info('Loading big user_binary_code')
@@ -573,13 +581,14 @@ class ColdStart(FashionNetDeploy):
 
     def save_data(self):
         LOGGER.info('saving data')
-        with open(self.param.data_file + '_new', 'wb') as f:
+        with open(f'{self.param.data_file}_new', 'wb') as f:
             data = dict(
                 big_outfits_posi_feat   = self.big_outfits_posi_feat,
                 big_outfits_nega_feat   = self.big_outfits_nega_feat,
                 small_outfits_posi_feat = self.small_outfits_posi_feat,
                 small_outfits_nega_feat = self.small_outfits_nega_feat,
                 big_user_codes          = self.big_user_codes,
+                outfits_raw             = self.outfits_raw,
             )
             pickle.dump(data, f)
         LOGGER.info('save data done.')
@@ -598,16 +607,17 @@ class ColdStart(FashionNetDeploy):
             self.small_outfits_posi_feat = data.get('small_outfits_posi_feat', None)
             self.small_outfits_nega_feat = data.get('small_outfits_nega_feat', None)
             self.big_user_codes          = data.get('big_user_codes', None)
+            self.outfits_raw             = data.get('outfits_raw', None)
 
-        if self.big_outfits_posi_feat is None:
+        if self.big_outfits_posi_feat is None or self.outfits_raw is None:
             LOGGER.info('loading big_outfits_posi_feat')
             self.big_loader.set_data_mode('PosiOnly')
-            self.big_outfits_posi_feat = self.get_outfits(self.big_loader)
+            self.big_outfits_posi_feat, self.outfits_raw = self.get_outfits(self.big_loader, True)
         if self.big_outfits_nega_feat is None:
             LOGGER.info('loading big_outfits_nega_feat')
             self.big_loader.set_data_mode('NegaOnly')
             self.big_outfits_nega_feat = self.get_outfits(self.big_loader)
-        reload_small = True
+        reload_small = False
         if reload_small or self.small_outfits_posi_feat is None:
             LOGGER.info('loading small_outfits_posi_feat')
             self.small_loader.set_data_mode('PosiOnly')
@@ -688,10 +698,6 @@ class ColdStart(FashionNetDeploy):
         items, uidx = inputs
         users = torch.stack([self.user_codes[u] for u in uidx])
         users = utils.to_device(users, self.device)
-        # print(users.shape)
-        # print(type(self.user_codes[0]))
-        # print(self.user_codes[0].shape)
-        # print(users)
         if self.param.use_semantic and self.param.use_visual:
             score_v = self.visual_output(users, items[0])
             score_s = self.semantic_output(users, items[1])
