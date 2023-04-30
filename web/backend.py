@@ -1,7 +1,7 @@
 '''
 Author: Kaizyn
 Date: 2023-04-24 16:56:13
-LastEditTime: 2023-04-30 22:02:00
+LastEditTime: 2023-04-30 22:33:20
 '''
 import os
 import time
@@ -21,6 +21,30 @@ FILE_PATH = os.path.abspath(__file__)
 WEB_PATH = os.path.dirname(FILE_PATH)
 PROJ_PATH = os.path.dirname(WEB_PATH)
 
+def TopKSort(count, start, end, res, k):
+    randIndex = random.randint(start, end - 1)  # 随机挑一个下标作为中间值开始找
+    count[start], count[randIndex] = count[randIndex], count[start] # 先把这个随机找到的中间元素放到开头
+    
+    midVal = count[start][1] # 选中的中间值
+    index = start + 1
+    for i in range(start + 1, end):
+        if count[i][1] > midVal: # 把所有大于中间值的放到左边
+            count[index], count[i] = count[i], count[index]
+            index += 1
+    count[start], count[index - 1] = count[index - 1], count[start] # 中间元素归位
+
+    if k < index - start: # 随机找到的top大元素比k个多，继续从前面top大里面找k个
+        TopKSort(count, start, index, res, k)
+    elif k > index - start: # 随机找到的比k个少
+        # for i in range(start, index): # 先把top大元素的key存入结果
+            # res.append(count[i][0])
+        TopKSort(count, index, end, res, k - (index - start)) # 继续往后找
+    else: # 随机找到的等于k个
+        # for i in range(start, index): # 把topk元素的key存入结果
+            # res.append(count[i][0])
+        return
+
+
 class Recommender():
     K = 10
     D = 128
@@ -36,11 +60,11 @@ class Recommender():
         self.outfits: list           = None # N * [[3 * file_name], feat(D)]
         self.lambda_u                = None # D
         self.lambda_i                = None # D
-        self.rank_outfits: list      = []   # N * int
         self.clicks_posi_feat: list  = []   # * D
         self.clicks_nega_feat: list  = []   # * D
         self.click_user_code         = np.random.rand(self.D)
         self.load_data()
+        self.N = len(self.outfits)
 
     def load_data(self):
         time_start = time.time()
@@ -123,28 +147,25 @@ class Recommender():
         ratings = [(self.click_user_code * self.lambda_u * outfit[-1]).sum() for outfit in self.outfits]
         time_points.append(time.time())
         LOGGER.info(f'recommend() calculate ratings time cost: {time_points[-1] - time_points[-2]}s.')
-        self.rank_outfits = [x for _, x in sorted(zip(ratings, range(len(ratings))), reverse=True)]
+        '''
+        recommend_id = []
+        rating_id = list(zip(ratings, range(self.N)))
+        TopKSort(rating_id, 0, self.N, recommend_id, self.K * 10)  # 迭代函数求前k个
         time_points.append(time.time())
         LOGGER.info(f'recommend() rank ratings time cost: {time_points[-1] - time_points[-2]}s.')
-        recommend_id = [self.rank_outfits[id] for id in random.sample(range(100), self.K)]
+        recommend_id = [i for r, i in rating_id[:self.K * 10]]
+        recommend_id = random.sample(recommend_id, self.K)
+        '''
+        rank_outfits = [x for _, x in sorted(zip(ratings, range(len(ratings))), reverse=True)]
+        time_points.append(time.time())
+        LOGGER.info(f'recommend() rank ratings time cost: {time_points[-1] - time_points[-2]}s.')
+        recommend_id = [rank_outfits[id] for id in random.sample(range(100), self.K)]
         recommend_outfits = [[*self.outfits[id][0], id] for id in recommend_id]
         time_points.append(time.time())
         LOGGER.info(f'recommend() total time cost: {time_points[-1] - time_points[0]}s.')
         LOGGER.debug(f'recommend(): recommend_id = {recommend_id}')
         return recommend_outfits
-        return \
-        [
-            [
-                "images/thumbs/clothes.jpg",
-                "images/thumbs/pants.jpg",
-                "images/thumbs/shoes.jpg",
-            ],
-            [
-                "images/thumbs/clothes.jpg",
-                "images/thumbs/01.jpg",
-                "images/thumbs/02.jpg",
-            ],
-        ]
+
 
 RECOMMENDER: Recommender = None
 
