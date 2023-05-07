@@ -1714,7 +1714,8 @@ input, select, textarea {
 			-webkit-transition-delay: 2.525s;
 			-ms-transition-delay: 2.525s;
 			transition-delay: 2.525s;
-			height: calc(100vh - 2em);
+			/* height: calc(100vh - 2em); */
+			height: 873px;
 			min-height: 20em;
 			width: 20%;
 			/* width: 291px; */
