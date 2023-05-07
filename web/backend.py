@@ -1,7 +1,7 @@
 '''
 Author: Kaizyn
 Date: 2023-04-24 16:56:13
-LastEditTime: 2023-05-07 13:20:21
+LastEditTime: 2023-05-07 20:38:26
 '''
 import os
 import time
@@ -143,7 +143,8 @@ class Recommender():
         else:
             pass
         self.click_user_code = self.get_user_embedding()
-        LOGGER.info(f'click({action}, {outfit}): user_code = {self.click_user_code}')
+        LOGGER.info(f'click({action}, {outfit}).')
+        LOGGER.debug(f'user_code = {self.click_user_code}')
     
     def recommend(self):
         time_points = [time.time()]

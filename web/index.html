@@ -6,7 +6,7 @@
 -->
 <html>
 	<head>
-		<title>时尚套装推荐系统</title>
+		<title>个性化套装推荐系统</title>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
 		<link rel="stylesheet" href="assets/css/main.css" />
@@ -19,7 +19,7 @@
 
 				<!-- Header -->
 					<header id="header">
-						<h1><a href="index.html"><strong>时尚套装推荐系统</strong> by 19063140</a></h1>
+						<h1><a href="index.html"><strong>个性化套装推荐系统</strong> by 19063140</a></h1>
 						<nav>
 							<ul>
 								<li><a href="#footer" class="icon solid fa-info-circle">About</a></li>
@@ -304,6 +304,11 @@
             xhr.open('POST', '/', true);
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
             xhr.send('action=' + action + '&outfit=' + outfit);
+						if (action == 'yes') {
+							alert('你喜欢这件套装^v^');
+						} else {
+							alert('你不喜欢这件套装ToT');
+						}
         }
     	</script>
 
