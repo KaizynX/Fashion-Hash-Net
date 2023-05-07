@@ -1,7 +1,7 @@
 '''
 Author: Kaizyn
 Date: 2023-04-24 16:56:13
-LastEditTime: 2023-04-30 22:33:20
+LastEditTime: 2023-05-07 13:20:21
 '''
 import os
 import time
@@ -15,7 +15,8 @@ from flask import Flask, render_template, request
 app = Flask(__name__, template_folder='./', static_folder='/', static_url_path='/')
 # app = Flask(__name__, template_folder='./')
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.DEBUG)
+# LOGGER.setLevel(logging.DEBUG)
+LOGGER.setLevel(logging.INFO)
 
 FILE_PATH = os.path.abspath(__file__)
 WEB_PATH = os.path.dirname(FILE_PATH)
@@ -108,8 +109,10 @@ class Recommender():
 
     def get_user_embedding(self):
         time_points = [time.time()]
-        click_posi_feat = np.random.rand(self.D)
-        click_nega_feat = np.random.rand(self.D)
+        # click_posi_feat = np.random.rand(self.D)
+        # click_nega_feat = np.random.rand(self.D)
+        click_posi_feat = np.ones(self.D)
+        click_nega_feat = np.ones(self.D)
         if len(self.clicks_posi_feat) > 0:
             click_posi_feat = sum(self.clicks_posi_feat) / len(self.clicks_posi_feat)
         if len(self.clicks_nega_feat) > 0:
