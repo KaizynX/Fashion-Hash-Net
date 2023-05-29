@@ -115,22 +115,22 @@ def plot_hyper():
 
 def plot_dataset():
   # x = [5, 5, 10, 100]
-  x = [3, 5, 10, 20]
+  x = [2, 5, 10, 20]
   data = {
     'FITB': {
       'retrain-epoch=1': [0.5993, 0.5967, 0.6157, 0.6199, ],
       'retrain-best': [0.6039, 0.6127, 0.6235, 0.6399, ],
-      'tradition': [0.5561, 0.5427, 0.5581, 0.5489, ],
+      'similarity': [0.5561, 0.5427, 0.5581, 0.5489, ],
     },
     'AUC': {
       'retrain-epoch=1': [0.8680, 0.8702, 0.8912, 0.9097, ],
       'retrain-best': [0.8787, 0.8817, 0.9068, 0.9225, ],
-      'tradition': [0.7932, 0.7953, 0.8032, 0.8048, ],
+      'similarity': [0.7932, 0.7953, 0.8032, 0.8048, ],
     },
     'NDCG': {
       'retrain-epoch=1': [0.7726, 0.7763, 0.8025, 0.8345, ],
       'retrain-best': [0.7903, 0.7949, 0.8314, 0.8645, ],
-      'tradition': [0.6391, 0.6389, 0.6568, 0.6615, ],
+      'similarity': [0.6391, 0.6389, 0.6568, 0.6615, ],
     },
   }
 
@@ -149,7 +149,9 @@ def plot_dataset():
     # ax.set_xlim(0, max(x) + 50)
     # ax.set_ylim(yl - margin_y, yr + margin_y)
     # ax.set_ylim(yl - 0.1 , yr + 0.005)
-    ax.set_ylim(yl - 0.1 , 1)
+    # ax.set_ylim(yl - 0.2 , yr + 0.05)
+    ax.set_ylim(yl - 0.05 , yr + 0.01)
+    # ax.set_ylim(0 , 1)
     # ax.set_ylim(0 , 1)
     # ax.set_title()
     ax.set_xlabel('dataset size')
@@ -158,7 +160,7 @@ def plot_dataset():
     # bar = ax.bar(x, y)
     # ax.bar_label(bar, labels=k_labels)
     ax.legend()
-    ax.set_xticks([0, 3, 5, 10, 15, 20])
+    ax.set_xticks([0, 2, 5, 10, 15, 20])
     ax.set_xticklabels(['0%', '5%*', '5%', '10%', '...', '100%'])
 
   plt.plot()
@@ -196,5 +198,5 @@ def plot_time():
 if __name__ == '__main__':
     # plot_top()
     # plot_hyper()
-    # plot_dataset()
-    plot_time()
+    plot_dataset()
+    # plot_time()
