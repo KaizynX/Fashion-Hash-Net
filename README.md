@@ -1,5 +1,12 @@
 # Fashion Hash Net
 
+## Preamble
+
+I completed my graduation project based on this responsitory. 
+
+[Here](https://github.com/KaizynX/Fashion-Hash-Net/blob/master/thesis.pdf) are the details of my work.
+And this is the [link](https://github.com/lzcn/Fashion-Hash-Net) to the original project. 
+
 ## Description
 
 This responsitory contains the code of paper [Learning Binary Code for Personalized Fashion Recommendation](http://openaccess.thecvf.com/content_CVPR_2019/papers/Lu_Learning_Binary_Code_for_Personalized_Fashion_Recommendation_CVPR_2019_paper.pdf)
