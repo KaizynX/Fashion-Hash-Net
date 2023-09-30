@@ -1,0 +1,11 @@
+# torch
+# torchvision
+# torchaudio
+pillow
+numpy>=1.17.3
+pandas
+scikit-learn
+lmdb
+pyyaml
+visdom
+tqdm
